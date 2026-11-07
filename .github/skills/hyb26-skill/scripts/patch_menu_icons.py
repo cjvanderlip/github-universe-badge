@@ -93,7 +93,7 @@ def patch_text(text: str) -> str:
             f"with {GIST_URL} and apply the change by hand."
         )
     indent = anchor.group(1)
-    line = f"{indent}self.picture = None if slug in ICONS else load_picture(path)\n"
+    line = f'{indent}self.picture = load_picture(path) if slug == "settings" or slug not in ICONS else None\n'
     text = text[: anchor.end()] + line + text[anchor.end():]
 
     anchor = _single(

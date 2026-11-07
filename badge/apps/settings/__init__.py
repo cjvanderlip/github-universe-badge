@@ -12,6 +12,9 @@ screen.antialias = image.X2
 
 SECRETS_FILE = "/secrets.py"
 TEMP_SECRETS_FILE = "/secrets.py.tmp"
+SYSTEM_SECRETS_FILE = "/system/secrets.py"
+OVERRIDES_START = "# Settings app overrides\n"
+OVERRIDES_END = "# End Settings app overrides\n"
 
 FIELDS = (
     ("WIFI_SSID", "WiFi Network", "text"),
@@ -117,10 +120,19 @@ def is_locked(key):
 
 
 def save_value(key, value):
+    if key not in tuple(field[0] for field in FIELDS):
+        raise ValueError("Unknown setting")
     if key == "REGION" and value not in REGIONS:
         raise ValueError("Invalid WiFi region")
-    if key == "TIMEZONE" and (not isinstance(value, int) or value < TIMEZONE_MIN or value > TIMEZONE_MAX):
+    if key == "TIMEZONE" and (type(value) is not int or value < TIMEZONE_MIN or value > TIMEZONE_MAX):
         raise ValueError("Timezone must be an integer from -12 to +14")
+    if key != "TIMEZONE" and not isinstance(value, str):
+        raise ValueError("Setting must be text")
+
+    save = getattr(secrets, "save", None) if secrets is not None else None
+    if callable(save):
+        save({key: value})
+        return
 
     try:
         with open(SECRETS_FILE, "r") as f:
@@ -128,26 +140,37 @@ def save_value(key, value):
     except OSError as error:
         if not error.args or error.args[0] != 2:
             raise
-        lines = []
+        with open(SYSTEM_SECRETS_FILE, "r") as f:
+            lines = f.readlines()
 
-    assignment = f"{key} = {value!r}\n"
-    updated = []
-    found = False
-    for line in lines:
-        stripped = line.lstrip()
-        if stripped.startswith(key) and stripped[len(key):].lstrip().startswith("="):
-            updated.append(assignment)
-            found = True
-        else:
-            updated.append(line)
-    if not found:
-        if updated and not updated[-1].endswith("\n"):
-            updated[-1] += "\n"
-        updated.append(assignment)
+    overrides = []
+    if lines and lines[-1] == OVERRIDES_END:
+        for index in range(len(lines) - 2, -1, -1):
+            if lines[index] == OVERRIDES_START:
+                overrides = lines[index + 1:-1]
+                lines = lines[:index]
+                break
 
-    with open(TEMP_SECRETS_FILE, "w") as f:
-        f.writelines(updated)
-    os.rename(TEMP_SECRETS_FILE, SECRETS_FILE)
+    prefix = key + " = "
+    overrides = [line for line in overrides if not line.startswith(prefix)]
+    overrides.append(f"{key} = {value!r}\n")
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    lines.extend([OVERRIDES_START] + overrides + [OVERRIDES_END])
+
+    try:
+        with open(TEMP_SECRETS_FILE, "w") as f:
+            for line in lines:
+                f.write(line)
+            f.flush()
+        os.rename(TEMP_SECRETS_FILE, SECRETS_FILE)
+    except OSError:
+        try:
+            os.remove(TEMP_SECRETS_FILE)
+        except OSError as error:
+            if not error.args or error.args[0] != 2:
+                print("Settings: could not remove temporary file:", error)
+        raise
 
     if secrets is not None:
         setattr(secrets, key, value)
@@ -255,7 +278,8 @@ class SettingsList:
     def edited(self, key, value):
         try:
             save_value(key, value)
-        except OSError as error:
+        except (OSError, ValueError) as error:
+            print("Settings: save failed:", error)
             self.save_error = str(error)
             return False
         self.values[key] = value
@@ -507,7 +531,7 @@ class RegionEditor:
         screen.pen = dim_white
         screen.text(f"{self.index + 1} / {len(REGIONS)}", WIDTH // 2 - 15, FIELD_TOP + 82)
         draw_ribbon(self.label)
-        draw_hint("select", (BUTTON_SELECT,), WIDTH - TITLE_X)
+        draw_hint("save failed" if self.settings.save_error else "select", (BUTTON_SELECT,), WIDTH - TITLE_X)
 
 
 class TimezoneEditor:
@@ -547,7 +571,7 @@ class TimezoneEditor:
         screen.pen = dim_white
         screen.text(f"{self.offset - TIMEZONE_MIN + 1} / {TIMEZONE_MAX - TIMEZONE_MIN + 1}", WIDTH // 2 - 15, FIELD_TOP + 82)
         draw_ribbon(self.label)
-        draw_hint("adjust", (BUTTON_LEFT, BUTTON_RIGHT), WIDTH - TITLE_X)
+        draw_hint("save failed" if self.settings.save_error else "adjust", (BUTTON_LEFT, BUTTON_RIGHT), WIDTH - TITLE_X)
 
 
 class Key:

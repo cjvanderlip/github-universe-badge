@@ -43,7 +43,8 @@ def unpatch(text: str) -> str:
     text = text.replace('ICON_FILE = "icon.png"\n', "")
     text = text.replace(patch_menu_icons.LOAD_PICTURE, "")
     text = text.replace(
-        "        self.picture = None if slug in ICONS else load_picture(path)\n", ""
+        '        self.picture = load_picture(path) if slug == "settings" or slug not in ICONS else None\n',
+        "",
     )
     block = "".join(
         f"        {row}\n" if row else "\n"
@@ -58,7 +59,7 @@ class MenuIconPatchTests(unittest.TestCase):
         self.assertTrue(patch_menu_icons.is_patched(patched))
         self.assertIn('ICON_FILE = "icon.png"\nTILE_FILTER', patched)
         self.assertIn(
-            "        self.picture = None if slug in ICONS else load_picture(path)\n",
+            '        self.picture = load_picture(path) if slug == "settings" or slug not in ICONS else None\n',
             patched,
         )
         self.assertIn("            return\n\n        icon = self.current_icon", patched)
