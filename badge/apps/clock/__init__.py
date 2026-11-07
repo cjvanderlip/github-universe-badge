@@ -167,9 +167,7 @@ def update_time(region, timezone):
     dst = DaylightSaving(dstp, stdp)
     t = time.mktime(time.gmtime())
     tm = time.gmtime(dst.localtime(t))
-    RTC().datetime((tm[0], tm[1], tm[2], tm[6] + 1, tm[3], tm[4], tm[5], 0))
-    year, month, day, dow, hour, minute, second, dow = RTC().datetime()
-    rtc.datetime((year, month, day, hour, minute, second, dow))
+    RTC().datetime((tm[0], tm[1], tm[2], tm[6], tm[3], tm[4], tm[5], 0))
 
     return True
 
@@ -178,7 +176,8 @@ def display_time():
     # Chooses which clock face to show based on the clock_style global.
     global clock_dots, numerals, background, foreground
 
-    currenttime = rtc.datetime()
+    year, month, day, weekday, hour, minute, second, _ = RTC().datetime()
+    currenttime = (year, month, day, hour, minute, second, weekday)
 
     if state["clock_style"] == DisplayType.textclock:
         draw_text_clock(currenttime)
