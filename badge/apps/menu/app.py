@@ -200,7 +200,7 @@ class App(Tile):
         self.pattern = PATTERNS[(ordinal * 3) % len(PATTERNS)]
         self.icon_key = slug if slug in ICONS else "default"
         self.icon = build_icon(ICONS[self.icon_key])
-        self.picture = None if slug in ICONS else load_picture(path)
+        self.picture = load_picture(path) if slug == "settings" or slug not in ICONS else None
         self.animation = None
         self.was_selected = False
         self.selected_at = 0
